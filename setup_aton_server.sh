@@ -6,6 +6,9 @@
 # the ATON Server MSA environment
 ###########################################
 
+sudo timedatectl set-ntp true
+sudo systemctl restart chronyd
+
 set -e  # Exit on error
 
 # Color codes for output
@@ -241,3 +244,5 @@ main() {
 
 # Run main function
 main "$@"
+
+
