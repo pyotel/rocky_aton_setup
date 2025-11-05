@@ -12,16 +12,19 @@ ATON Server는 항로표지(Aids To Navigation) IoT 장비로부터 데이터를
 rocky_aton_setup/
 ├── aton_server/               # 클론된 ATON Server 리포지토리
 │   └── aton_server_msa/       # MSA 서비스 디렉토리
-│       ├── docker-compose.yml
+│       ├── docker compose.yml
 │       ├── .env
 │       ├── mosquitto/
 │       ├── comm2center/
 │       └── restfulapi/
-├── setup_aton_server.sh       # 자동 설치 스크립트
+├── setup_aton_server.sh       # 자동 설치 스크립트 (인터넷 환경)
+├── export_for_airgap.sh       # 폐쇄망 패키지 생성 스크립트
 ├── check_prerequisites.sh     # 전제조건 확인 스크립트
 ├── test_services.sh           # 서비스 테스트 스크립트
 ├── QUICKSTART.md              # 빠른 시작 가이드
 ├── INSTALL_INSTRUCTIONS.md    # 상세 설치 가이드
+├── AIRGAP_QUICKSTART.md       # 폐쇄망 빠른 시작 가이드
+├── AIRGAP_GUIDE.md            # 폐쇄망 상세 가이드
 └── README.md                  # 이 파일
 ```
 
@@ -30,7 +33,34 @@ rocky_aton_setup/
 - Rocky Linux 9.4 또는 9.6
 - 최소 2GB RAM
 - 10GB 이상의 디스크 공간
-- 인터넷 연결
+- 인터넷 연결 (일반 설치) 또는 USB (폐쇄망 설치)
+
+## 설치 방법
+
+### 방법 1: 일반 설치 (인터넷 연결 환경)
+
+아래의 빠른 시작 가이드를 따르세요.
+
+### 방법 2: 폐쇄망 설치 (인터넷 연결 없음)
+
+완전히 폐쇄된 네트워크 환경에서 USB를 통해 설치하는 방법:
+
+1. **패키지 준비** (인터넷 연결 환경):
+   ```bash
+   sudo ./export_for_airgap.sh
+   cp airgap_package.tar.gz /media/usb/
+   ```
+
+2. **폐쇄망 설치**:
+   ```bash
+   tar xzf airgap_package.tar.gz
+   cd airgap_package
+   sudo ./scripts/install_airgap.sh
+   ```
+
+**자세한 내용:**
+- 빠른 시작: [AIRGAP_QUICKSTART.md](AIRGAP_QUICKSTART.md)
+- 상세 가이드: [AIRGAP_GUIDE.md](AIRGAP_GUIDE.md)
 
 ## 빠른 시작
 
@@ -66,14 +96,14 @@ exit  # 현재 세션 종료
 
 ```bash
 cd aton_server/aton_server_msa
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 4. 서비스 상태 확인
 
 ```bash
-docker-compose ps
-docker-compose logs -f
+docker compose ps
+docker compose logs -f
 ```
 
 ## 서비스 구성
@@ -137,7 +167,7 @@ newgrp docker
 # 포트 사용 확인
 sudo netstat -tulpn | grep -E '5000|8086|31883'
 
-# docker-compose.yml에서 포트 변경
+# docker compose.yml에서 포트 변경
 ```
 
 ### 방화벽 이슈
@@ -159,13 +189,13 @@ sudo firewall-cmd --reload
 cd aton_server/aton_server_msa
 
 # 모든 서비스 로그
-docker-compose logs -f
+docker compose logs -f
 
 # 특정 서비스 로그
-docker-compose logs -f influxdb
-docker-compose logs -f mosquitto
-docker-compose logs -f comm2center
-docker-compose logs -f restfulapi
+docker compose logs -f influxdb
+docker compose logs -f mosquitto
+docker compose logs -f comm2center
+docker compose logs -f restfulapi
 ```
 
 ### 서비스 재시작
@@ -174,35 +204,35 @@ docker-compose logs -f restfulapi
 cd aton_server/aton_server_msa
 
 # 모든 서비스 재시작
-docker-compose restart
+docker compose restart
 
 # 특정 서비스만 재시작
-docker-compose restart restfulapi
+docker compose restart restfulapi
 ```
 
 ## Docker Compose 명령어
 
 ```bash
 # 서비스 시작 (백그라운드)
-docker-compose up -d
+docker compose up -d
 
 # 서비스 중지
-docker-compose stop
+docker compose stop
 
 # 서비스 중지 및 컨테이너 제거
-docker-compose down
+docker compose down
 
 # 서비스 상태 확인
-docker-compose ps
+docker compose ps
 
 # 로그 보기
-docker-compose logs -f [service_name]
+docker compose logs -f [service_name]
 
 # 서비스 재빌드
-docker-compose build --no-cache
+docker compose build --no-cache
 
 # 서비스 재시작
-docker-compose restart
+docker compose restart
 ```
 
 ## 데이터 볼륨
