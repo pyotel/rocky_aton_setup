@@ -49,7 +49,11 @@ tar tzf airgap_package.tar.gz | head -20
 
 일반적으로 패키지 크기는 약 1~3GB입니다.
 
-### 1.4 USB로 전송
+### 1.4 패키지 전송
+
+폐쇄망 환경으로 패키지를 전송하는 방법은 두 가지가 있습니다:
+
+#### 방법 A: USB를 통한 전송
 
 ```bash
 # USB 마운트 확인
@@ -66,6 +70,35 @@ rsync -avh --progress airgap_package.tar.gz /media/usb/
 sync
 umount /media/usb
 ```
+
+#### 방법 B: 네트워크를 통한 전송 (폐쇄망이 아닌 경우)
+
+폐쇄망이지만 내부 네트워크가 있는 경우, 원격 서버에서 scp로 다운로드할 수 있습니다:
+
+```bash
+# 대상 시스템에서 실행 (원격 서버에서 다운로드)
+./download_airgap_package.sh -h <원격서버IP>
+
+# 예제: 원격 서버 192.168.1.100에서 다운로드
+./download_airgap_package.sh -h 192.168.1.100
+
+# 자동 압축 해제 옵션
+./download_airgap_package.sh -h 192.168.1.100 -e
+
+# 사용자 및 경로 지정
+./download_airgap_package.sh -u keti -h 192.168.1.100 -r /path/to/airgap_package.tar.gz
+
+# SSH 포트 지정
+./download_airgap_package.sh -h 192.168.1.100 -p 2222
+```
+
+**download_airgap_package.sh 옵션:**
+- `-u USER`: 원격 서버 사용자명 (기본값: keti)
+- `-h HOST`: 원격 서버 호스트 (필수)
+- `-r PATH`: 원격 파일 경로 (기본값: ~/src/rocky/airgap_package.tar.gz)
+- `-l PATH`: 로컬 저장 경로 (기본값: ./airgap_package.tar.gz)
+- `-e`: 다운로드 후 자동 압축 해제
+- `-p PORT`: SSH 포트 (기본값: 22)
 
 ## 2단계: 폐쇄망 환경 설치
 

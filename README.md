@@ -19,6 +19,7 @@ rocky_aton_setup/
 │       └── restfulapi/
 ├── setup_aton_server.sh       # 자동 설치 스크립트 (인터넷 환경)
 ├── export_for_airgap.sh       # 폐쇄망 패키지 생성 스크립트
+├── download_airgap_package.sh # 원격 서버에서 패키지 다운로드 스크립트
 ├── check_prerequisites.sh     # 전제조건 확인 스크립트
 ├── test_services.sh           # 서비스 테스트 스크립트
 ├── QUICKSTART.md              # 빠른 시작 가이드
@@ -43,8 +44,9 @@ rocky_aton_setup/
 
 ### 방법 2: 폐쇄망 설치 (인터넷 연결 없음)
 
-완전히 폐쇄된 네트워크 환경에서 USB를 통해 설치하는 방법:
+완전히 폐쇄된 네트워크 환경에서 설치하는 방법:
 
+**A. USB를 통한 설치:**
 1. **패키지 준비** (인터넷 연결 환경):
    ```bash
    sudo ./export_for_airgap.sh
@@ -57,6 +59,14 @@ rocky_aton_setup/
    cd airgap_package
    sudo ./scripts/install_airgap.sh
    ```
+
+**B. 내부 네트워크를 통한 설치:**
+```bash
+# 원격 서버에서 scp로 다운로드
+./download_airgap_package.sh -h 192.168.1.100 -e
+cd airgap_package
+sudo ./scripts/install_airgap.sh
+```
 
 **자세한 내용:**
 - 빠른 시작: [AIRGAP_QUICKSTART.md](AIRGAP_QUICKSTART.md)

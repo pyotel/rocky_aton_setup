@@ -26,6 +26,8 @@
 
 ### 1. 패키지 준비 (인터넷 환경)
 
+#### 방법 A: 직접 생성
+
 ```bash
 # 패키지 생성
 sudo ./export_for_airgap.sh
@@ -34,6 +36,19 @@ sudo ./export_for_airgap.sh
 cp airgap_package.tar.gz /media/usb/
 sync
 umount /media/usb
+```
+
+#### 방법 B: 원격 서버에서 다운로드
+
+```bash
+# 원격 서버에서 scp로 다운로드
+./download_airgap_package.sh -h 192.168.1.100
+
+# 자동 압축 해제
+./download_airgap_package.sh -h 192.168.1.100 -e
+
+# 사용자 및 경로 지정
+./download_airgap_package.sh -u keti -h 192.168.1.100 -r /path/to/airgap_package.tar.gz
 ```
 
 ### 2. 폐쇄망 설치
