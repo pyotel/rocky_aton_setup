@@ -1,0 +1,3 @@
+[submodule "aton_server"]
+	path = aton_server
+	url = https://github.com/pyotel/aton_server
