@@ -358,6 +358,12 @@ install_rpm_packages() {
 
 # 패키지 설치 (OS별 분기)
 install_packages() {
+    # Docker가 이미 설치되어 있는지 확인
+    if command -v docker &> /dev/null; then
+        log_info "Docker가 이미 설치되어 있습니다. 패키지 설치를 건너뜁니다."
+        return 0
+    fi
+
     if [ "$PKG_TYPE" = "deb" ]; then
         install_deb_packages
     elif [ "$PKG_TYPE" = "rpm" ]; then
@@ -367,8 +373,15 @@ install_packages() {
 
 # Docker 서비스 시작
 start_docker() {
-    log_step "Docker 서비스 시작 중..."
+    log_step "Docker 서비스 확인 중..."
 
+    # Docker 서비스가 이미 실행 중인지 확인
+    if systemctl is-active --quiet docker; then
+        log_info "Docker 서비스가 이미 실행 중입니다."
+        return 0
+    fi
+
+    log_step "Docker 서비스 시작 중..."
     systemctl start docker
     systemctl enable docker
 
