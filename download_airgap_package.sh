@@ -33,11 +33,12 @@ log_step() {
 }
 
 # 기본 설정값
-REMOTE_USER="${REMOTE_USER:-keti}"
-REMOTE_HOST="${REMOTE_HOST:-}"
-REMOTE_PATH="${REMOTE_PATH:-~/src/rocky/airgap_package.tar.gz}"
+REMOTE_USER="${REMOTE_USER:-pyotel}"
+REMOTE_HOST="${REMOTE_HOST:-ketiict.com}"
+REMOTE_PATH="${REMOTE_PATH:-/home/pyotel/src/rocky_aton_setup/airgap_package.tar.gz}"
 LOCAL_PATH="${LOCAL_PATH:-./airgap_package.tar.gz}"
 AUTO_EXTRACT="${AUTO_EXTRACT:-no}"
+SSH_PORT="${SSH_PORT:-37022}"
 
 # 사용법 출력
 usage() {
@@ -45,36 +46,35 @@ usage() {
 사용법: $0 [옵션]
 
 옵션:
-    -u USER         원격 서버 사용자명 (기본값: keti)
-    -h HOST         원격 서버 호스트 (필수)
-    -r PATH         원격 파일 경로 (기본값: ~/src/rocky/airgap_package.tar.gz)
+    -u USER         원격 서버 사용자명 (기본값: pyotel)
+    -h HOST         원격 서버 호스트 (기본값: ketiict.com)
+    -r PATH         원격 파일 경로 (기본값: /home/pyotel/src/rocky_aton_setup/airgap_package.tar.gz)
     -l PATH         로컬 저장 경로 (기본값: ./airgap_package.tar.gz)
     -e              다운로드 후 자동 압축 해제
-    -p PORT         SSH 포트 (기본값: 22)
+    -p PORT         SSH 포트 (기본값: 37022)
     --help          도움말 표시
 
 예제:
-    # 기본 사용법
-    $0 -h 192.168.1.100
+    # 기본 사용법 (ketiict.com:37022에서 다운로드)
+    $0
 
     # 사용자 지정
-    $0 -u myuser -h 192.168.1.100
+    $0 -u myuser -h otherserver.com -p 22
 
     # 전체 옵션
-    $0 -u keti -h 192.168.1.100 -r /path/to/airgap_package.tar.gz -l ./package.tar.gz
+    $0 -u pyotel -h ketiict.com -p 37022 -r /path/to/airgap_package.tar.gz -l ./package.tar.gz
 
     # 다운로드 후 자동 압축 해제
-    $0 -h 192.168.1.100 -e
+    $0 -e
 
     # 환경 변수 사용
-    REMOTE_HOST=192.168.1.100 $0
+    REMOTE_HOST=192.168.1.100 SSH_PORT=22 $0
 
 EOF
     exit 1
 }
 
 # 인자 파싱
-SSH_PORT=22
 while [[ $# -gt 0 ]]; do
     case $1 in
         -u)
@@ -111,12 +111,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# 필수 파라미터 확인
-if [ -z "$REMOTE_HOST" ]; then
-    log_error "원격 호스트가 지정되지 않았습니다."
-    echo ""
-    usage
-fi
+# 파라미터 확인 (기본값이 설정되어 있으므로 필수 체크 제거)
 
 # scp 명령어 확인
 check_scp() {
