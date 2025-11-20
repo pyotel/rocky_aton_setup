@@ -4,6 +4,7 @@
 # ATON Server - 폐쇄망 환경 준비 스크립트
 # 이 스크립트는 인터넷이 연결된 환경에서 실행하여
 # 폐쇄망 환경에 필요한 모든 파일을 준비합니다.
+# 지원 OS: Ubuntu, Rocky Linux
 ###########################################
 
 set -e  # Exit on error
@@ -32,10 +33,38 @@ log_step() {
     echo -e "${BLUE}[STEP]${NC} $1"
 }
 
+# OS 감지
+detect_os() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+        OS_VERSION=$VERSION_ID
+    else
+        log_error "OS를 감지할 수 없습니다."
+        exit 1
+    fi
+
+    case "$OS" in
+        ubuntu|debian)
+            PKG_TYPE="deb"
+            PKG_DIR="deb_packages"
+            log_info "감지된 OS: Ubuntu/Debian"
+            ;;
+        rocky|rhel|centos)
+            PKG_TYPE="rpm"
+            PKG_DIR="rpm_packages"
+            log_info "감지된 OS: Rocky Linux/RHEL/CentOS"
+            ;;
+        *)
+            log_error "지원하지 않는 OS입니다: $OS"
+            exit 1
+            ;;
+    esac
+}
+
 # 작업 디렉토리 설정
 EXPORT_DIR="./airgap_package"
 IMAGES_DIR="${EXPORT_DIR}/docker_images"
-RPM_DIR="${EXPORT_DIR}/rpm_packages"
 SCRIPTS_DIR="${EXPORT_DIR}/scripts"
 
 # 디렉토리 생성
@@ -43,7 +72,7 @@ prepare_directories() {
     log_step "작업 디렉토리 준비 중..."
 
     mkdir -p "${IMAGES_DIR}"
-    mkdir -p "${RPM_DIR}"
+    mkdir -p "${EXPORT_DIR}/${PKG_DIR}"
     mkdir -p "${SCRIPTS_DIR}"
 
     log_info "디렉토리 생성 완료"
@@ -90,11 +119,71 @@ export_docker_images() {
     log_info "Docker 이미지 저장 완료"
 }
 
-# RPM 패키지 다운로드
-download_rpm_packages() {
-    log_step "RPM 패키지 다운로드 중..."
+# 패키지 다운로드 (OS별 분기)
+download_packages() {
+    log_step "패키지 다운로드 중..."
 
-    cd "${RPM_DIR}"
+    cd "${EXPORT_DIR}/${PKG_DIR}"
+
+    if [ "$PKG_TYPE" = "deb" ]; then
+        download_deb_packages
+    elif [ "$PKG_TYPE" = "rpm" ]; then
+        download_rpm_packages
+    fi
+
+    cd ../..
+
+    log_info "패키지 다운로드 완료"
+}
+
+# DEB 패키지 다운로드 (Ubuntu/Debian)
+download_deb_packages() {
+    log_info "DEB 패키지 다운로드 중..."
+
+    # Docker 관련 패키지
+    log_info "Docker 관련 패키지 다운로드 중..."
+    apt-get download \
+        docker-ce \
+        docker-ce-cli \
+        containerd.io \
+        docker-buildx-plugin \
+        docker-compose-plugin || true
+
+    # 의존성 패키지도 다운로드
+    apt-get install --download-only -y \
+        docker-ce \
+        docker-ce-cli \
+        containerd.io \
+        docker-buildx-plugin \
+        docker-compose-plugin 2>/dev/null || true
+
+    # 다운로드된 패키지 복사
+    if [ -d /var/cache/apt/archives/ ]; then
+        cp /var/cache/apt/archives/*.deb . 2>/dev/null || true
+    fi
+
+    # Git 관련 패키지
+    log_info "Git 관련 패키지 다운로드 중..."
+    apt-get download git git-man || true
+
+    # 유틸리티 패키지
+    log_info "유틸리티 패키지 다운로드 중..."
+    apt-get download \
+        curl \
+        wget \
+        vim \
+        net-tools \
+        dnsutils \
+        tar \
+        gzip \
+        rsync || true
+
+    log_info "DEB 패키지 다운로드 완료"
+}
+
+# RPM 패키지 다운로드 (Rocky Linux/RHEL)
+download_rpm_packages() {
+    log_info "RPM 패키지 다운로드 중..."
 
     # Docker 관련 패키지
     log_info "Docker 관련 패키지 다운로드 중..."
@@ -123,8 +212,6 @@ download_rpm_packages() {
     # EPEL 저장소 패키지
     log_info "EPEL 저장소 패키지 다운로드 중..."
     dnf download epel-release
-
-    cd ../..
 
     log_info "RPM 패키지 다운로드 완료"
 }
@@ -159,6 +246,7 @@ create_airgap_install_script() {
 ###########################################
 # ATON Server - 폐쇄망 환경 설치 스크립트
 # 이 스크립트는 폐쇄망 환경에서 실행됩니다.
+# 지원 OS: Ubuntu, Rocky Linux
 ###########################################
 
 set -e
@@ -182,6 +270,35 @@ log_step() {
     echo -e "${BLUE}[STEP]${NC} $1"
 }
 
+# OS 감지
+detect_os() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+        OS_VERSION=$VERSION_ID
+    else
+        log_error "OS를 감지할 수 없습니다."
+        exit 1
+    fi
+
+    case "$OS" in
+        ubuntu|debian)
+            PKG_TYPE="deb"
+            PKG_DIR="deb_packages"
+            log_info "감지된 OS: Ubuntu/Debian"
+            ;;
+        rocky|rhel|centos)
+            PKG_TYPE="rpm"
+            PKG_DIR="rpm_packages"
+            log_info "감지된 OS: Rocky Linux/RHEL/CentOS"
+            ;;
+        *)
+            log_error "지원하지 않는 OS입니다: $OS"
+            exit 1
+            ;;
+    esac
+}
+
 # Root 권한 확인
 check_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -194,10 +311,33 @@ check_root() {
 sync_time() {
     log_step "시스템 시간 동기화..."
     timedatectl set-ntp true
-    systemctl restart chronyd || true
+
+    if [ "$PKG_TYPE" = "rpm" ]; then
+        systemctl restart chronyd || true
+    else
+        systemctl restart systemd-timesyncd || true
+    fi
 }
 
-# RPM 패키지 설치
+# DEB 패키지 설치 (Ubuntu/Debian)
+install_deb_packages() {
+    log_step "DEB 패키지 설치 중..."
+
+    cd deb_packages
+
+    # 모든 DEB 패키지 설치
+    log_info "패키지 설치 중..."
+    dpkg -i *.deb 2>/dev/null || true
+
+    # 의존성 문제 해결
+    apt-get install -f -y || true
+
+    cd ..
+
+    log_info "DEB 패키지 설치 완료"
+}
+
+# RPM 패키지 설치 (Rocky Linux/RHEL)
 install_rpm_packages() {
     log_step "RPM 패키지 설치 중..."
 
@@ -214,6 +354,15 @@ install_rpm_packages() {
     cd ..
 
     log_info "RPM 패키지 설치 완료"
+}
+
+# 패키지 설치 (OS별 분기)
+install_packages() {
+    if [ "$PKG_TYPE" = "deb" ]; then
+        install_deb_packages
+    elif [ "$PKG_TYPE" = "rpm" ]; then
+        install_rpm_packages
+    fi
 }
 
 # Docker 서비스 시작
@@ -246,8 +395,9 @@ load_docker_images() {
 
 # 방화벽 설정
 configure_firewall() {
+    # firewalld (Rocky Linux)
     if systemctl is-active --quiet firewalld; then
-        log_step "방화벽 설정 중..."
+        log_step "방화벽 설정 중 (firewalld)..."
 
         firewall-cmd --permanent --add-port=5000/tcp   # RESTful API
         firewall-cmd --permanent --add-port=8086/tcp   # InfluxDB
@@ -256,8 +406,17 @@ configure_firewall() {
         firewall-cmd --reload
 
         log_info "방화벽 설정 완료"
+    # ufw (Ubuntu)
+    elif command -v ufw &> /dev/null && ufw status | grep -q "Status: active"; then
+        log_step "방화벽 설정 중 (ufw)..."
+
+        ufw allow 5000/tcp   # RESTful API
+        ufw allow 8086/tcp   # InfluxDB
+        ufw allow 31883/tcp  # MQTT
+
+        log_info "방화벽 설정 완료"
     else
-        log_info "Firewalld가 실행 중이 아닙니다. 방화벽 설정을 건너뜁니다."
+        log_info "방화벽이 실행 중이 아닙니다. 방화벽 설정을 건너뜁니다."
     fi
 }
 
@@ -332,9 +491,10 @@ main() {
     log_info "ATON Server 폐쇄망 환경 설치 시작..."
     echo ""
 
+    detect_os
     check_root
     sync_time
-    install_rpm_packages
+    install_packages
     start_docker
     load_docker_images
     configure_firewall
@@ -371,10 +531,15 @@ airgap_package/
 │   ├── mosquitto_1.5.6.tar
 │   ├── comm2center.tar
 │   └── restfulapi.tar
-├── rpm_packages/           # RPM 패키지 및 의존성
+├── rpm_packages/           # RPM 패키지 및 의존성 (Rocky Linux용)
 │   ├── docker-ce-*.rpm
 │   ├── docker-compose-plugin-*.rpm
 │   ├── git-*.rpm
+│   └── ...
+├── deb_packages/           # DEB 패키지 및 의존성 (Ubuntu용)
+│   ├── docker-ce_*.deb
+│   ├── docker-compose-plugin_*.deb
+│   ├── git_*.deb
 │   └── ...
 ├── scripts/                # 설치 스크립트
 │   └── install_airgap.sh
@@ -384,7 +549,7 @@ airgap_package/
 
 ## 시스템 요구사항
 
-- Rocky Linux 9.4 또는 9.6
+- **지원 OS**: Ubuntu 20.04/22.04 또는 Rocky Linux 9.4/9.6
 - 최소 2GB RAM
 - 10GB 이상의 디스크 공간
 - **인터넷 연결 불필요**
@@ -585,12 +750,16 @@ show_summary() {
     echo ""
     echo "생성된 파일:"
     echo "  - airgap_package/ (디렉토리)"
-    echo "  - airgap_package.tar.gz (압축 파일)"
+    echo "  - airgap_package.tar.gz (압축 패일)"
     echo ""
     echo "패키지 내용:"
     echo "  - Docker 이미지 (influxdb, mosquitto, comm2center, restfulapi)"
-    echo "  - RPM 패키지 (Docker, Git, 유틸리티)"
-    echo "  - 설치 스크립트"
+    if [ "$PKG_TYPE" = "deb" ]; then
+        echo "  - DEB 패키지 (Docker, Git, 유틸리티) - Ubuntu용"
+    else
+        echo "  - RPM 패키지 (Docker, Git, 유틸리티) - Rocky Linux용"
+    fi
+    echo "  - 설치 스크립트 (OS 자동 감지)"
     echo "  - ATON Server 소스 코드"
     echo ""
     echo "다음 단계:"
@@ -599,7 +768,9 @@ show_summary() {
     echo "  3. 압축 해제: tar xzf airgap_package.tar.gz"
     echo "  4. 설치 실행: cd airgap_package && sudo ./scripts/install_airgap.sh"
     echo ""
-    echo "자세한 내용은 airgap_package/AIRGAP_INSTALL.md를 참조하세요."
+    echo "참고:"
+    echo "  - 설치 스크립트는 Ubuntu와 Rocky Linux를 자동으로 감지합니다"
+    echo "  - 자세한 내용은 airgap_package/AIRGAP_INSTALL.md를 참조하세요"
     echo "============================================"
     echo ""
 }
@@ -608,6 +779,9 @@ show_summary() {
 main() {
     log_info "ATON Server 폐쇄망 환경 준비 시작..."
     echo ""
+
+    # OS 감지
+    detect_os
 
     # Docker 확인
     if ! command -v docker &> /dev/null; then
@@ -623,7 +797,7 @@ main() {
 
     prepare_directories
     export_docker_images
-    download_rpm_packages
+    download_packages
     copy_project_files
     create_airgap_install_script
     create_airgap_readme
