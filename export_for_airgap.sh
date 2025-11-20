@@ -140,35 +140,42 @@ download_packages() {
 download_deb_packages() {
     log_info "DEB 패키지 다운로드 중..."
 
-    # Docker 관련 패키지
-    log_info "Docker 관련 패키지 다운로드 중..."
-    apt-get download \
-        docker-ce \
-        docker-ce-cli \
-        containerd.io \
-        docker-buildx-plugin \
-        docker-compose-plugin || true
+    # apt 캐시 업데이트
+    log_info "APT 캐시 업데이트 중..."
+    apt-get update
 
-    # 의존성 패키지도 다운로드
+    # 캐시 디렉토리 정리
+    apt-get clean
+    rm -rf /var/cache/apt/archives/*.deb
+
+    # Docker 저장소 확인
+    log_info "Docker 저장소 확인 중..."
+    if ! grep -q "download.docker.com" /etc/apt/sources.list.d/*.list 2>/dev/null; then
+        log_warn "Docker 저장소가 설정되어 있지 않습니다. Docker 공식 저장소 추가 방법:"
+        log_warn "  sudo apt-get install -y ca-certificates curl"
+        log_warn "  sudo install -m 0755 -d /etc/apt/keyrings"
+        log_warn "  sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc"
+        log_warn "  sudo chmod a+r /etc/apt/keyrings/docker.asc"
+        log_warn "  echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \$(. /etc/os-release && echo \"\$VERSION_CODENAME\") stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null"
+        log_warn "  sudo apt-get update"
+    fi
+
+    # Docker 관련 패키지와 모든 의존성 다운로드
+    log_info "Docker 패키지 및 의존성 다운로드 중..."
     apt-get install --download-only -y \
         docker-ce \
         docker-ce-cli \
         containerd.io \
         docker-buildx-plugin \
-        docker-compose-plugin 2>/dev/null || true
+        docker-compose-plugin
 
-    # 다운로드된 패키지 복사
-    if [ -d /var/cache/apt/archives/ ]; then
-        cp /var/cache/apt/archives/*.deb . 2>/dev/null || true
-    fi
+    # Git 및 의존성 다운로드
+    log_info "Git 패키지 다운로드 중..."
+    apt-get install --download-only -y git
 
-    # Git 관련 패키지
-    log_info "Git 관련 패키지 다운로드 중..."
-    apt-get download git git-man || true
-
-    # 유틸리티 패키지
+    # 유틸리티 패키지 다운로드
     log_info "유틸리티 패키지 다운로드 중..."
-    apt-get download \
+    apt-get install --download-only -y \
         curl \
         wget \
         vim \
@@ -176,7 +183,28 @@ download_deb_packages() {
         dnsutils \
         tar \
         gzip \
-        rsync || true
+        rsync \
+        ca-certificates \
+        gnupg \
+        lsb-release
+
+    # 다운로드된 모든 패키지 복사
+    log_info "패키지 복사 중..."
+    if [ -d /var/cache/apt/archives/ ]; then
+        cp /var/cache/apt/archives/*.deb . 2>/dev/null || true
+
+        # 복사된 파일 개수 확인
+        DEB_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
+        log_info "총 ${DEB_COUNT}개의 DEB 패키지 다운로드 완료"
+
+        if [ ${DEB_COUNT} -eq 0 ]; then
+            log_error "다운로드된 패키지가 없습니다!"
+            exit 1
+        fi
+    else
+        log_error "APT 캐시 디렉토리를 찾을 수 없습니다"
+        exit 1
+    fi
 
     log_info "DEB 패키지 다운로드 완료"
 }
@@ -323,14 +351,46 @@ sync_time() {
 install_deb_packages() {
     log_step "DEB 패키지 설치 중..."
 
+    if [ ! -d "deb_packages" ]; then
+        log_error "deb_packages 디렉토리를 찾을 수 없습니다"
+        exit 1
+    fi
+
     cd deb_packages
 
-    # 모든 DEB 패키지 설치
-    log_info "패키지 설치 중..."
-    dpkg -i *.deb 2>/dev/null || true
+    # 패키지 개수 확인
+    DEB_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
+    log_info "설치할 패키지: ${DEB_COUNT}개"
 
-    # 의존성 문제 해결
-    apt-get install -f -y || true
+    if [ ${DEB_COUNT} -eq 0 ]; then
+        log_error "설치할 DEB 패키지가 없습니다"
+        exit 1
+    fi
+
+    # 모든 DEB 패키지 설치 (의존성 무시)
+    log_info "1차 설치 시도 중..."
+    dpkg -i *.deb 2>&1 | tee /tmp/dpkg_install.log || true
+
+    # 의존성 문제가 있는지 확인
+    if dpkg -l | grep -q "^iU\|^iF"; then
+        log_info "의존성 문제 해결 중..."
+
+        # APT 로컬 저장소 설정 (폐쇄망에서는 외부 연결 없이)
+        log_info "로컬 패키지로 의존성 해결 시도..."
+
+        # dpkg를 사용하여 강제로 설정
+        dpkg --configure -a 2>/dev/null || true
+
+        # 한번 더 설치 시도
+        dpkg -i *.deb 2>/dev/null || true
+    fi
+
+    # 설치 확인
+    if command -v docker &> /dev/null; then
+        log_info "Docker 설치 확인: $(docker --version)"
+    else
+        log_warn "Docker 설치를 확인할 수 없습니다"
+    fi
 
     cd ..
 
@@ -360,8 +420,14 @@ install_rpm_packages() {
 install_packages() {
     # Docker가 이미 설치되어 있는지 확인
     if command -v docker &> /dev/null; then
-        log_info "Docker가 이미 설치되어 있습니다. 패키지 설치를 건너뜁니다."
-        return 0
+        DOCKER_VERSION=$(docker --version 2>/dev/null)
+        log_warn "Docker가 이미 설치되어 있습니다: ${DOCKER_VERSION}"
+        read -p "패키지 설치를 건너뛰시겠습니까? [Y/n]: " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            log_info "패키지 설치를 건너뜁니다."
+            return 0
+        fi
     fi
 
     if [ "$PKG_TYPE" = "deb" ]; then
