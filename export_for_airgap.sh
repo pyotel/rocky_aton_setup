@@ -4,7 +4,7 @@
 # ATON Server - 폐쇄망 환경 준비 스크립트
 # 이 스크립트는 인터넷이 연결된 환경에서 실행하여
 # 폐쇄망 환경에 필요한 모든 파일을 준비합니다.
-# 지원 OS: Ubuntu, Rocky Linux
+# 타겟 OS: Rocky Linux (기본값)
 ###########################################
 
 set -e  # Exit on error
@@ -33,33 +33,41 @@ log_step() {
     echo -e "${BLUE}[STEP]${NC} $1"
 }
 
-# OS 감지
-detect_os() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        OS=$ID
-        OS_VERSION=$VERSION_ID
-    else
-        log_error "OS를 감지할 수 없습니다."
-        exit 1
-    fi
+# 타겟 OS 설정 (기본값: Rocky Linux)
+TARGET_OS="${TARGET_OS:-rocky}"
 
-    case "$OS" in
+# 타겟 OS에 따른 패키지 타입 설정
+set_target_package_type() {
+    case "$TARGET_OS" in
         ubuntu|debian)
             PKG_TYPE="deb"
             PKG_DIR="deb_packages"
-            log_info "감지된 OS: Ubuntu/Debian"
+            log_info "타겟 OS: Ubuntu/Debian"
+            log_warn "현재 시스템이 Ubuntu/Debian이 아니면 DEB 패키지 다운로드가 실패할 수 있습니다."
             ;;
         rocky|rhel|centos)
             PKG_TYPE="rpm"
             PKG_DIR="rpm_packages"
-            log_info "감지된 OS: Rocky Linux/RHEL/CentOS"
+            log_info "타겟 OS: Rocky Linux/RHEL/CentOS"
+            log_warn "현재 시스템이 Rocky/RHEL/CentOS가 아니면 RPM 패키지 다운로드가 실패할 수 있습니다."
             ;;
         *)
-            log_error "지원하지 않는 OS입니다: $OS"
+            log_error "지원하지 않는 타겟 OS입니다: $TARGET_OS"
+            log_error "지원 OS: ubuntu, debian, rocky, rhel, centos"
             exit 1
             ;;
     esac
+}
+
+# 현재 시스템 OS 확인
+check_current_os() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        CURRENT_OS=$ID
+        log_info "현재 시스템 OS: $CURRENT_OS"
+    else
+        log_warn "현재 OS를 감지할 수 없습니다."
+    fi
 }
 
 # 작업 디렉토리 설정
@@ -675,20 +683,27 @@ airgap_package/
 
 ## 시스템 요구사항
 
-- **지원 OS**: Ubuntu 20.04/22.04 또는 Rocky Linux 9.4/9.6
+- **타겟 OS (폐쇄망)**: Rocky Linux 9.4/9.6
+- **준비 OS (인터넷 연결)**: Rocky Linux (RPM 다운로드용) 또는 Ubuntu (DEB 다운로드용)
 - 최소 2GB RAM
 - 10GB 이상의 디스크 공간
-- **인터넷 연결 불필요**
+- **폐쇄망 환경에서는 인터넷 연결 불필요**
 
 ## 설치 방법
 
 ### 1. 패키지 준비 (인터넷 연결된 환경)
 
-인터넷이 연결된 환경에서 다음 스크립트를 실행하여 패키지를 준비합니다:
+인터넷이 연결된 Rocky Linux 환경에서 다음 스크립트를 실행하여 패키지를 준비합니다:
 
 ```bash
+# Rocky Linux용 패키지 준비 (기본값)
 sudo ./export_for_airgap.sh
+
+# 또는 명시적으로 지정
+sudo ./export_for_airgap.sh --target-os rocky
 ```
+
+**중요**: Ubuntu에서 실행 시 DEB 패키지가 다운로드되므로, Rocky Linux용 패키지를 준비하려면 반드시 Rocky Linux 시스템에서 실행하세요.
 
 이 스크립트는 `airgap_package` 디렉토리에 필요한 모든 파일을 준비합니다.
 
@@ -878,36 +893,82 @@ show_summary() {
     echo "  - airgap_package/ (디렉토리)"
     echo "  - airgap_package.tar.gz (압축 패일)"
     echo ""
+    echo "타겟 OS: ${TARGET_OS}"
+    echo ""
     echo "패키지 내용:"
     echo "  - Docker 이미지 (influxdb, mosquitto, comm2center, restfulapi)"
     if [ "$PKG_TYPE" = "deb" ]; then
-        echo "  - DEB 패키지 (Docker, Git, 유틸리티) - Ubuntu용"
+        echo "  - DEB 패키지 (Docker, Git, 유틸리티) - Ubuntu/Debian용"
     else
-        echo "  - RPM 패키지 (Docker, Git, 유틸리티) - Rocky Linux용"
+        echo "  - RPM 패키지 (Docker, Git, 유틸리티) - Rocky Linux/RHEL용"
     fi
     echo "  - 설치 스크립트 (OS 자동 감지)"
     echo "  - ATON Server 소스 코드"
     echo ""
     echo "다음 단계:"
     echo "  1. airgap_package.tar.gz 파일을 USB로 복사"
-    echo "  2. 폐쇄망 환경으로 전송"
+    echo "  2. Rocky Linux 폐쇄망 환경으로 전송"
     echo "  3. 압축 해제: tar xzf airgap_package.tar.gz"
     echo "  4. 설치 실행: cd airgap_package && sudo ./scripts/install_airgap.sh"
     echo ""
     echo "참고:"
-    echo "  - 설치 스크립트는 Ubuntu와 Rocky Linux를 자동으로 감지합니다"
+    echo "  - 이 패키지는 ${TARGET_OS} 시스템용으로 준비되었습니다"
     echo "  - 자세한 내용은 airgap_package/AIRGAP_INSTALL.md를 참조하세요"
     echo "============================================"
     echo ""
 }
+
+# 사용법 출력
+usage() {
+    cat << EOF
+사용법: $0 [옵션]
+
+옵션:
+    --target-os OS      타겟 OS 지정 (기본값: rocky)
+                        지원: ubuntu, debian, rocky, rhel, centos
+    --help              도움말 표시
+
+예제:
+    # Rocky Linux용 패키지 준비 (기본값)
+    $0
+
+    # Ubuntu용 패키지 준비
+    $0 --target-os ubuntu
+
+    # 환경 변수 사용
+    TARGET_OS=rocky $0
+
+EOF
+    exit 0
+}
+
+# 인자 파싱
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --target-os)
+            TARGET_OS="$2"
+            shift 2
+            ;;
+        --help)
+            usage
+            ;;
+        *)
+            log_error "알 수 없는 옵션: $1"
+            usage
+            ;;
+    esac
+done
 
 # 메인 실행
 main() {
     log_info "ATON Server 폐쇄망 환경 준비 시작..."
     echo ""
 
-    # OS 감지
-    detect_os
+    # 현재 시스템 OS 확인
+    check_current_os
+
+    # 타겟 OS 설정
+    set_target_package_type
 
     # Docker 확인
     if ! command -v docker &> /dev/null; then
