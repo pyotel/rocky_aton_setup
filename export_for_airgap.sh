@@ -213,6 +213,19 @@ download_deb_packages() {
 download_rpm_packages() {
     log_info "RPM 패키지 다운로드 중..."
 
+    # Docker 저장소 확인
+    log_info "Docker 저장소 확인 중..."
+    if ! dnf repolist | grep -q "docker"; then
+        log_warn "Docker 저장소가 설정되어 있지 않습니다. Docker 공식 저장소 추가 방법:"
+        log_warn "  sudo dnf install -y dnf-plugins-core"
+        log_warn "  sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo"
+        log_warn "  sudo dnf makecache"
+    fi
+
+    # EPEL 저장소 패키지 먼저 다운로드
+    log_info "EPEL 저장소 패키지 다운로드 중..."
+    dnf download epel-release 2>/dev/null || log_warn "EPEL 저장소 패키지 다운로드 실패 (이미 설치되어 있을 수 있음)"
+
     # Docker 관련 패키지
     log_info "Docker 관련 패키지 다운로드 중..."
     dnf download --resolve --alldeps \
@@ -220,7 +233,7 @@ download_rpm_packages() {
         docker-ce-cli \
         containerd.io \
         docker-buildx-plugin \
-        docker-compose-plugin
+        docker-compose-plugin 2>&1 | tee /tmp/dnf_download.log
 
     # Git 관련 패키지
     log_info "Git 관련 패키지 다운로드 중..."
@@ -235,11 +248,21 @@ download_rpm_packages() {
         net-tools \
         bind-utils \
         tar \
-        gzip
+        gzip \
+        rsync
 
-    # EPEL 저장소 패키지
-    log_info "EPEL 저장소 패키지 다운로드 중..."
-    dnf download epel-release
+    # 다운로드된 패키지 개수 확인
+    RPM_COUNT=$(ls -1 *.rpm 2>/dev/null | wc -l)
+    log_info "총 ${RPM_COUNT}개의 RPM 패키지 다운로드 완료"
+
+    if [ ${RPM_COUNT} -eq 0 ]; then
+        log_error "다운로드된 RPM 패키지가 없습니다!"
+        log_error "다음을 확인하세요:"
+        log_error "  1. Docker 저장소가 설정되어 있는지 확인"
+        log_error "  2. 인터넷 연결 확인"
+        log_error "  3. /tmp/dnf_download.log 파일 확인"
+        exit 1
+    fi
 
     log_info "RPM 패키지 다운로드 완료"
 }
@@ -401,15 +424,39 @@ install_deb_packages() {
 install_rpm_packages() {
     log_step "RPM 패키지 설치 중..."
 
+    if [ ! -d "rpm_packages" ]; then
+        log_error "rpm_packages 디렉토리를 찾을 수 없습니다"
+        exit 1
+    fi
+
     cd rpm_packages
 
+    # 패키지 개수 확인
+    RPM_COUNT=$(ls -1 *.rpm 2>/dev/null | wc -l)
+    log_info "설치할 패키지: ${RPM_COUNT}개"
+
+    if [ ${RPM_COUNT} -eq 0 ]; then
+        log_error "설치할 RPM 패키지가 없습니다"
+        exit 1
+    fi
+
     # EPEL 저장소 먼저 설치
-    log_info "EPEL 저장소 설치 중..."
-    dnf install -y ./epel-release*.rpm || true
+    if ls epel-release*.rpm 1> /dev/null 2>&1; then
+        log_info "EPEL 저장소 설치 중..."
+        rpm -ivh --force ./epel-release*.rpm 2>&1 | tee /tmp/rpm_epel_install.log || log_warn "EPEL 설치 실패 (이미 설치되어 있을 수 있음)"
+    fi
 
     # 모든 RPM 패키지 설치
     log_info "패키지 설치 중..."
-    dnf install -y ./*.rpm --skip-broken
+    dnf install -y ./*.rpm --skip-broken --nobest 2>&1 | tee /tmp/rpm_install.log
+
+    # 설치 확인
+    if command -v docker &> /dev/null; then
+        log_info "Docker 설치 확인: $(docker --version)"
+    else
+        log_warn "Docker 설치를 확인할 수 없습니다"
+        log_warn "로그 확인: /tmp/rpm_install.log"
+    fi
 
     cd ..
 
