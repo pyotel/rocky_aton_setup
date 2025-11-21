@@ -537,8 +537,8 @@ configure_firewall() {
     if systemctl is-active --quiet firewalld; then
         log_step "방화벽 설정 중 (firewalld)..."
 
-        firewall-cmd --permanent --add-port=5000/tcp   # RESTful API
-        firewall-cmd --permanent --add-port=8086/tcp   # InfluxDB
+        firewall-cmd --permanent --add-port=31020/tcp  # RESTful API
+        firewall-cmd --permanent --add-port=31886/tcp  # InfluxDB
         firewall-cmd --permanent --add-port=31883/tcp  # MQTT
 
         firewall-cmd --reload
@@ -548,8 +548,8 @@ configure_firewall() {
     elif command -v ufw &> /dev/null && ufw status | grep -q "Status: active"; then
         log_step "방화벽 설정 중 (ufw)..."
 
-        ufw allow 5000/tcp   # RESTful API
-        ufw allow 8086/tcp   # InfluxDB
+        ufw allow 31020/tcp  # RESTful API
+        ufw allow 31886/tcp  # InfluxDB
         ufw allow 31883/tcp  # MQTT
 
         log_info "방화벽 설정 완료"
@@ -617,8 +617,8 @@ show_next_steps() {
     echo "   docker compose logs -f"
     echo ""
     echo "===== 서비스 엔드포인트 ====="
-    echo "- RESTful API: http://localhost:5000"
-    echo "- InfluxDB: http://localhost:8086"
+    echo "- RESTful API: http://localhost:31020"
+    echo "- InfluxDB: http://localhost:31886"
     echo "- MQTT Broker: mqtt://localhost:31883"
     echo "=========================="
     echo ""
