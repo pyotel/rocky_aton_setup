@@ -262,7 +262,10 @@ download_rpm_packages() {
 
     # Mosquitto MQTT 브로커 및 클라이언트
     log_info "Mosquitto 패키지 다운로드 중..."
-    dnf download --resolve --alldeps mosquitto mosquitto-clients
+    dnf download --resolve --alldeps mosquitto
+
+    # mosquitto-clients는 선택적 (EPEL에서 사용 가능한 경우만)
+    dnf download --resolve --alldeps mosquitto-clients 2>/dev/null || log_warn "mosquitto-clients 패키지를 사용할 수 없습니다 (mosquitto 패키지에 포함되어 있을 수 있음)"
 
     # 다운로드된 패키지 개수 확인
     RPM_COUNT=$(ls -1 *.rpm 2>/dev/null | wc -l)
