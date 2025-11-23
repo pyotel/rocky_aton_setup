@@ -259,6 +259,10 @@ download_rpm_packages() {
         gzip \
         rsync
 
+    # Mosquitto MQTT 브로커 및 클라이언트
+    log_info "Mosquitto 패키지 다운로드 중..."
+    dnf download --resolve --alldeps mosquitto mosquitto-clients
+
     # 다운로드된 패키지 개수 확인
     RPM_COUNT=$(ls -1 *.rpm 2>/dev/null | wc -l)
     log_info "총 ${RPM_COUNT}개의 RPM 패키지 다운로드 완료"
