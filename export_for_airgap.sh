@@ -257,7 +257,8 @@ download_rpm_packages() {
         bind-utils \
         tar \
         gzip \
-        rsync
+        rsync \
+        tmux
 
     # Mosquitto MQTT 브로커 및 클라이언트
     log_info "Mosquitto 패키지 다운로드 중..."
