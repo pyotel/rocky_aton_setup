@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ATON Server - Airgap Package Download Server
-포트 31888에서 airgap_package.tar.gz 파일을 다운로드할 수 있는 웹서버
+포트 31889에서 airgap_package.tar.gz 파일을 다운로드할 수 있는 웹서버
 """
 
 import http.server
@@ -9,7 +9,7 @@ import socketserver
 import os
 import sys
 
-PORT = 31888
+PORT = 31889
 PACKAGE_FILE = "airgap_package.tar.gz"
 
 HTML_TEMPLATE = """<!DOCTYPE html>
