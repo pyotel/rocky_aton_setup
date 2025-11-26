@@ -222,8 +222,35 @@ download_deb_packages() {
 }
 
 # RPM 패키지 다운로드 (Rocky Linux/RHEL)
+# 호스트가 RHEL 계열이 아니면 Docker 컨테이너를 사용하여 다운로드
 download_rpm_packages() {
     log_info "RPM 패키지 다운로드 중..."
+
+    # 현재 시스템이 RHEL 계열인지 확인
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        case "$ID" in
+            rocky|rhel|centos|fedora|almalinux)
+                log_info "RHEL 계열 시스템 감지됨. 직접 다운로드합니다."
+                download_rpm_packages_native
+                return $?
+                ;;
+            *)
+                log_info "비-RHEL 계열 시스템 감지됨 ($ID). Docker 컨테이너를 사용하여 다운로드합니다."
+                download_rpm_packages_docker
+                return $?
+                ;;
+        esac
+    else
+        log_warn "OS를 감지할 수 없습니다. Docker 컨테이너를 사용하여 다운로드합니다."
+        download_rpm_packages_docker
+        return $?
+    fi
+}
+
+# RPM 패키지 직접 다운로드 (RHEL 계열 호스트용)
+download_rpm_packages_native() {
+    log_info "네이티브 RPM 패키지 다운로드 중..."
 
     # Docker 저장소 확인
     log_info "Docker 저장소 확인 중..."
@@ -287,9 +314,120 @@ download_rpm_packages() {
     log_info "RPM 패키지 다운로드 완료"
 }
 
+# Docker 컨테이너를 사용하여 RPM 패키지 다운로드 (비-RHEL 계열 호스트용)
+download_rpm_packages_docker() {
+    log_info "Rocky Linux 9.4 Docker 컨테이너를 사용하여 RPM 패키지 다운로드 중..."
+
+    # Rocky Linux 이미지 pull
+    log_info "Rocky Linux 9.4 이미지 다운로드 중..."
+    docker pull rockylinux:9.4
+
+    # 컨테이너 내에서 실행할 스크립트 생성
+    cat > /tmp/download_rpm.sh << 'EOFSCRIPT'
+#!/bin/bash
+set -e
+
+echo "[INFO] Docker 저장소 설정 중..."
+dnf install -y dnf-plugins-core
+dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+dnf makecache
+
+echo "[INFO] EPEL 저장소 설정 중..."
+dnf install -y epel-release
+dnf makecache
+
+cd /rpm_packages
+
+echo "[INFO] EPEL 저장소 패키지 다운로드 중..."
+dnf download epel-release 2>/dev/null || echo "[WARN] EPEL 저장소 패키지 다운로드 실패"
+
+echo "[INFO] Docker 관련 패키지 다운로드 중..."
+dnf download --resolve --alldeps \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
+
+echo "[INFO] Git 관련 패키지 다운로드 중..."
+dnf download --resolve --alldeps git
+
+echo "[INFO] 유틸리티 패키지 다운로드 중..."
+dnf download --resolve --alldeps \
+    curl \
+    wget \
+    vim \
+    net-tools \
+    bind-utils \
+    tar \
+    gzip \
+    rsync \
+    tmux
+
+echo "[INFO] Mosquitto 패키지 다운로드 중..."
+dnf download --resolve --alldeps mosquitto
+
+# mosquitto-clients는 선택적
+dnf download --resolve --alldeps mosquitto-clients 2>/dev/null || echo "[WARN] mosquitto-clients 패키지를 사용할 수 없습니다"
+
+# Python 패키지 다운로드를 위한 pip 설치
+echo "[INFO] Python pip 설치 중..."
+dnf install -y python3-pip
+
+echo "[INFO] Python 패키지 다운로드 중..."
+cd /pip_packages
+pip3 download paho-mqtt influxdb
+
+echo "[INFO] 다운로드 완료!"
+ls -la /rpm_packages/
+ls -la /pip_packages/
+EOFSCRIPT
+
+    chmod +x /tmp/download_rpm.sh
+
+    # 현재 디렉토리의 절대 경로 얻기
+    RPM_DIR=$(cd "${EXPORT_DIR}/${PKG_DIR}" && pwd)
+    PIP_PKG_DIR=$(cd "${PIP_DIR}" && pwd)
+
+    log_info "RPM 패키지 디렉토리: ${RPM_DIR}"
+    log_info "PIP 패키지 디렉토리: ${PIP_PKG_DIR}"
+
+    # Docker 컨테이너 실행
+    log_info "Docker 컨테이너에서 패키지 다운로드 실행 중..."
+    docker run --rm \
+        -v "${RPM_DIR}:/rpm_packages" \
+        -v "${PIP_PKG_DIR}:/pip_packages" \
+        -v "/tmp/download_rpm.sh:/download_rpm.sh:ro" \
+        rockylinux:9.4 \
+        /bin/bash /download_rpm.sh
+
+    # 다운로드된 패키지 개수 확인
+    RPM_COUNT=$(ls -1 "${RPM_DIR}"/*.rpm 2>/dev/null | wc -l)
+    log_info "총 ${RPM_COUNT}개의 RPM 패키지 다운로드 완료"
+
+    if [ ${RPM_COUNT} -eq 0 ]; then
+        log_error "다운로드된 RPM 패키지가 없습니다!"
+        exit 1
+    fi
+
+    # 임시 스크립트 정리
+    rm -f /tmp/download_rpm.sh
+
+    log_info "RPM 패키지 다운로드 완료 (Docker 컨테이너 사용)"
+}
+
 # Python 패키지 다운로드
 download_pip_packages() {
     log_step "Python 패키지 다운로드 중..."
+
+    # Docker 컨테이너로 이미 다운로드된 경우 확인
+    PIP_PKG_DIR=$(cd "${PIP_DIR}" && pwd)
+    EXISTING_COUNT=$(ls -1 "${PIP_PKG_DIR}"/*.whl "${PIP_PKG_DIR}"/*.tar.gz 2>/dev/null | wc -l)
+
+    if [ ${EXISTING_COUNT} -gt 0 ]; then
+        log_info "Python 패키지가 이미 다운로드되어 있습니다 (${EXISTING_COUNT}개). 건너뜁니다."
+        return 0
+    fi
 
     cd "${PIP_DIR}"
 
