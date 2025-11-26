@@ -75,6 +75,9 @@ EXPORT_DIR="./airgap_package"
 IMAGES_DIR="${EXPORT_DIR}/docker_images"
 SCRIPTS_DIR="${EXPORT_DIR}/scripts"
 
+# Python 패키지 디렉토리
+PIP_DIR="${EXPORT_DIR}/pip_packages"
+
 # 디렉토리 생성
 prepare_directories() {
     log_step "작업 디렉토리 준비 중..."
@@ -82,6 +85,7 @@ prepare_directories() {
     mkdir -p "${IMAGES_DIR}"
     mkdir -p "${EXPORT_DIR}/${PKG_DIR}"
     mkdir -p "${SCRIPTS_DIR}"
+    mkdir -p "${PIP_DIR}"
 
     log_info "디렉토리 생성 완료"
 }
@@ -281,6 +285,36 @@ download_rpm_packages() {
     fi
 
     log_info "RPM 패키지 다운로드 완료"
+}
+
+# Python 패키지 다운로드
+download_pip_packages() {
+    log_step "Python 패키지 다운로드 중..."
+
+    cd "${PIP_DIR}"
+
+    # pip가 설치되어 있는지 확인
+    if ! command -v pip3 &> /dev/null; then
+        log_warn "pip3가 설치되어 있지 않습니다. Python 패키지 다운로드를 건너뜁니다."
+        cd ../..
+        return 0
+    fi
+
+    # MQTT 클라이언트 패키지
+    log_info "paho-mqtt 패키지 다운로드 중..."
+    pip3 download paho-mqtt
+
+    # InfluxDB 클라이언트 패키지 (InfluxDB 1.x용)
+    log_info "influxdb 패키지 다운로드 중..."
+    pip3 download influxdb
+
+    # 다운로드된 패키지 개수 확인
+    PIP_COUNT=$(ls -1 *.whl *.tar.gz 2>/dev/null | wc -l)
+    log_info "총 ${PIP_COUNT}개의 Python 패키지 다운로드 완료"
+
+    cd ../..
+
+    log_info "Python 패키지 다운로드 완료"
 }
 
 # 프로젝트 파일 복사
@@ -997,6 +1031,7 @@ main() {
     prepare_directories
     export_docker_images
     download_packages
+    download_pip_packages
     copy_project_files
     create_airgap_install_script
     create_airgap_readme

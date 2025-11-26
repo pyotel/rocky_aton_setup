@@ -194,6 +194,42 @@ install_packages() {
     fi
 }
 
+# Python 패키지 설치
+install_pip_packages() {
+    log_step "Python 패키지 설치 중..."
+
+    if [ ! -d "pip_packages" ]; then
+        log_warn "pip_packages 디렉토리를 찾을 수 없습니다. Python 패키지 설치를 건너뜁니다."
+        return 0
+    fi
+
+    # pip가 설치되어 있는지 확인
+    if ! command -v pip3 &> /dev/null; then
+        log_warn "pip3가 설치되어 있지 않습니다. Python 패키지 설치를 건너뜁니다."
+        return 0
+    fi
+
+    cd pip_packages
+
+    # 패키지 개수 확인
+    PIP_COUNT=$(ls -1 *.whl *.tar.gz 2>/dev/null | wc -l)
+
+    if [ ${PIP_COUNT} -eq 0 ]; then
+        log_warn "설치할 Python 패키지가 없습니다."
+        cd ..
+        return 0
+    fi
+
+    log_info "설치할 Python 패키지: ${PIP_COUNT}개"
+
+    # 오프라인 설치
+    pip3 install --no-index --find-links=. paho-mqtt influxdb 2>&1 | tee /tmp/pip_install.log || log_warn "일부 Python 패키지 설치 실패"
+
+    cd ..
+
+    log_info "Python 패키지 설치 완료"
+}
+
 # Docker 서비스 시작
 start_docker() {
     log_step "Docker 서비스 확인 중..."
@@ -331,6 +367,7 @@ main() {
     check_root
     sync_time
     install_packages
+    install_pip_packages
     start_docker
     load_docker_images
     configure_firewall
