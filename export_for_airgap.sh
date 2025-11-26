@@ -316,11 +316,11 @@ download_rpm_packages_native() {
 
 # Docker 컨테이너를 사용하여 RPM 패키지 다운로드 (비-RHEL 계열 호스트용)
 download_rpm_packages_docker() {
-    log_info "Rocky Linux 9.4 Docker 컨테이너를 사용하여 RPM 패키지 다운로드 중..."
+    log_info "Rocky Linux 9 Docker 컨테이너를 사용하여 RPM 패키지 다운로드 중..."
 
     # Rocky Linux 이미지 pull
-    log_info "Rocky Linux 9.4 이미지 다운로드 중..."
-    docker pull rockylinux:9.4
+    log_info "Rocky Linux 9 이미지 다운로드 중..."
+    docker pull rockylinux:9
 
     # 컨테이너 내에서 실행할 스크립트 생성
     cat > /tmp/download_rpm.sh << 'EOFSCRIPT'
@@ -398,7 +398,7 @@ EOFSCRIPT
         -v "${RPM_DIR}:/rpm_packages" \
         -v "${PIP_PKG_DIR}:/pip_packages" \
         -v "/tmp/download_rpm.sh:/download_rpm.sh:ro" \
-        rockylinux:9.4 \
+        rockylinux:9 \
         /bin/bash /download_rpm.sh
 
     # 다운로드된 패키지 개수 확인
