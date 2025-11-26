@@ -385,6 +385,10 @@ EOFSCRIPT
 
     chmod +x /tmp/download_rpm.sh
 
+    # 디렉토리가 없으면 생성
+    mkdir -p "${EXPORT_DIR}/${PKG_DIR}"
+    mkdir -p "${PIP_DIR}"
+
     # 현재 디렉토리의 절대 경로 얻기
     RPM_DIR=$(cd "${EXPORT_DIR}/${PKG_DIR}" && pwd)
     PIP_PKG_DIR=$(cd "${PIP_DIR}" && pwd)
