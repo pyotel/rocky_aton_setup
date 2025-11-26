@@ -1,0 +1,12 @@
+services:
+  package-server:
+    image: python:3.11-slim
+    container_name: airgap-package-server
+    working_dir: /app
+    command: python3 serve_package.py
+    ports:
+      - "37888:37888"
+    volumes:
+      - ./serve_package.py:/app/serve_package.py:ro
+      - ./airgap_package.tar.gz:/app/airgap_package.tar.gz:ro
+    restart: unless-stopped
