@@ -5,7 +5,7 @@ services:
     working_dir: /app
     command: python3 serve_package.py
     ports:
-      - "37888:37888"
+      - "31888:31888"
     volumes:
       - ./serve_package.py:/app/serve_package.py:ro
       - ../airgap_package.tar.gz:/app/airgap_package.tar.gz:ro
