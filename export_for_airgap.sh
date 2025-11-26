@@ -385,13 +385,13 @@ EOFSCRIPT
 
     chmod +x /tmp/download_rpm.sh
 
-    # 디렉토리가 없으면 생성
-    mkdir -p "${EXPORT_DIR}/${PKG_DIR}"
-    mkdir -p "${PIP_DIR}"
+    # 현재 디렉토리의 절대 경로 얻기 (이미 rpm_packages 디렉토리에 있음)
+    RPM_DIR=$(pwd)
 
-    # 현재 디렉토리의 절대 경로 얻기
-    RPM_DIR=$(cd "${EXPORT_DIR}/${PKG_DIR}" && pwd)
-    PIP_PKG_DIR=$(cd "${PIP_DIR}" && pwd)
+    # PIP 디렉토리 절대 경로 (rpm_packages와 같은 레벨)
+    PIP_PKG_DIR=$(cd ../pip_packages 2>/dev/null && pwd || echo "${RPM_DIR}/../pip_packages")
+    mkdir -p "${PIP_PKG_DIR}"
+    PIP_PKG_DIR=$(cd "${PIP_PKG_DIR}" && pwd)
 
     log_info "RPM 패키지 디렉토리: ${RPM_DIR}"
     log_info "PIP 패키지 디렉토리: ${PIP_PKG_DIR}"
