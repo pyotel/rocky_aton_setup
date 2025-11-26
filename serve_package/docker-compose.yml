@@ -8,5 +8,5 @@ services:
       - "37888:37888"
     volumes:
       - ./serve_package.py:/app/serve_package.py:ro
-      - ./airgap_package.tar.gz:/app/airgap_package.tar.gz:ro
+      - ../airgap_package.tar.gz:/app/airgap_package.tar.gz:ro
     restart: unless-stopped
