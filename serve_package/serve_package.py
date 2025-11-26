@@ -9,9 +9,12 @@ import socketserver
 import os
 import sys
 from string import Template
+from datetime import datetime
 
 PORT = 31889
-PACKAGE_FILE = "airgap_package.tar.gz"
+PACKAGE_DIR = os.environ.get("PACKAGE_DIR", ".")
+PACKAGE_FILENAME = "airgap_package.tar.gz"
+PACKAGE_FILE = os.path.join(PACKAGE_DIR, PACKAGE_FILENAME)
 
 HTML_TEMPLATE = Template("""<!DOCTYPE html>
 <html lang="ko">
@@ -69,6 +72,11 @@ HTML_TEMPLATE = Template("""<!DOCTYPE html>
         .file-size {
             color: #aaa;
             font-size: 0.9rem;
+        }
+        .file-date {
+            color: #aaa;
+            font-size: 0.85rem;
+            margin-top: 8px;
         }
         .download-btn {
             display: inline-block;
@@ -130,6 +138,7 @@ HTML_TEMPLATE = Template("""<!DOCTYPE html>
         <div class="file-info">
             <div class="file-name">$filename</div>
             <div class="file-size">$filesize</div>
+            <div class="file-date">$filedate</div>
         </div>
 
         $download_section
@@ -151,7 +160,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/" or self.path == "/index.html":
             self.send_index_page()
-        elif self.path == f"/{PACKAGE_FILE}":
+        elif self.path == f"/{PACKAGE_FILENAME}":
             self.send_file()
         else:
             self.send_error(404, "Not Found")
@@ -168,9 +177,14 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 size_str = f"{size} bytes"
 
-            download_section = f'<a href="/{PACKAGE_FILE}" class="download-btn">다운로드</a>'
+            # 파일 수정 시간 가져오기
+            mtime = os.path.getmtime(PACKAGE_FILE)
+            date_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+
+            download_section = f'<a href="/{PACKAGE_FILENAME}" class="download-btn">다운로드</a>'
         else:
             size_str = "파일 없음"
+            date_str = "-"
             download_section = '''
                 <span class="download-btn disabled">파일 없음</span>
                 <p class="error">airgap_package.tar.gz 파일이 없습니다.<br>
@@ -178,8 +192,9 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             '''
 
         html = HTML_TEMPLATE.substitute(
-            filename=PACKAGE_FILE,
+            filename=PACKAGE_FILENAME,
             filesize=size_str,
+            filedate=f"업데이트: {date_str}",
             download_section=download_section
         )
 
@@ -198,7 +213,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("Content-Type", "application/gzip")
-        self.send_header("Content-Disposition", f'attachment; filename="{PACKAGE_FILE}"')
+        self.send_header("Content-Disposition", f'attachment; filename="{PACKAGE_FILENAME}"')
         self.send_header("Content-Length", file_size)
         self.end_headers()
 
