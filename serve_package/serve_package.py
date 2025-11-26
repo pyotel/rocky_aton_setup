@@ -8,11 +8,12 @@ import http.server
 import socketserver
 import os
 import sys
+from string import Template
 
 PORT = 31889
 PACKAGE_FILE = "airgap_package.tar.gz"
 
-HTML_TEMPLATE = """<!DOCTYPE html>
+HTML_TEMPLATE = Template("""<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -127,24 +128,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <p class="subtitle">Airgap Package Download</p>
 
         <div class="file-info">
-            <div class="file-name">{filename}</div>
-            <div class="file-size">{filesize}</div>
+            <div class="file-name">$filename</div>
+            <div class="file-size">$filesize</div>
         </div>
 
-        {download_section}
+        $download_section
 
         <div class="instructions">
             <h3>설치 방법</h3>
             <ol>
                 <li>파일 다운로드 후 폐쇄망 환경으로 전송</li>
-                <li>압축 해제: <code>tar xzf {filename}</code></li>
+                <li>압축 해제: <code>tar xzf $filename</code></li>
                 <li>설치 실행: <code>cd airgap_package && sudo ./install_airgap.sh</code></li>
             </ol>
         </div>
     </div>
 </body>
 </html>
-"""
+""")
 
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -176,7 +177,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 먼저 <code>sudo ./export_for_airgap.sh</code>를 실행하세요.</p>
             '''
 
-        html = HTML_TEMPLATE.format(
+        html = HTML_TEMPLATE.substitute(
             filename=PACKAGE_FILE,
             filesize=size_str,
             download_section=download_section
