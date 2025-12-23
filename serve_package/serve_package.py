@@ -10,11 +10,15 @@ import os
 import sys
 from string import Template
 from datetime import datetime
+from threading import Thread
 
 PORT = 31889
-PACKAGE_DIR = os.environ.get("PACKAGE_DIR", ".")
 PACKAGE_FILENAME = "airgap_package.tar.gz"
-PACKAGE_FILE = os.path.join(PACKAGE_DIR, PACKAGE_FILENAME)
+
+def get_package_file():
+    """패키지 파일 경로를 동적으로 반환"""
+    package_dir = os.environ.get("PACKAGE_DIR", ".")
+    return os.path.join(package_dir, PACKAGE_FILENAME)
 
 HTML_TEMPLATE = Template("""<!DOCTYPE html>
 <html lang="ko">
@@ -165,9 +169,31 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_error(404, "Not Found")
 
+    def do_HEAD(self):
+        """HEAD 요청 처리"""
+        if self.path == f"/{PACKAGE_FILENAME}":
+            self.send_file_headers()
+        else:
+            self.send_error(404, "Not Found")
+
+    def send_file_headers(self):
+        """파일 다운로드 헤더만 전송 (HEAD 요청용)"""
+        package_file = get_package_file()
+        if not os.path.exists(package_file):
+            self.send_error(404, "File not found")
+            return
+
+        file_size = os.path.getsize(package_file)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/gzip")
+        self.send_header("Content-Disposition", f'attachment; filename="{PACKAGE_FILENAME}"')
+        self.send_header("Content-Length", file_size)
+        self.end_headers()
+
     def send_index_page(self):
-        if os.path.exists(PACKAGE_FILE):
-            size = os.path.getsize(PACKAGE_FILE)
+        package_file = get_package_file()
+        if os.path.exists(package_file):
+            size = os.path.getsize(package_file)
             if size >= 1024 * 1024 * 1024:
                 size_str = f"{size / (1024 * 1024 * 1024):.2f} GB"
             elif size >= 1024 * 1024:
@@ -178,7 +204,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 size_str = f"{size} bytes"
 
             # 파일 수정 시간 가져오기
-            mtime = os.path.getmtime(PACKAGE_FILE)
+            mtime = os.path.getmtime(package_file)
             date_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
 
             download_section = f'<a href="/{PACKAGE_FILENAME}" class="download-btn">다운로드</a>'
@@ -205,11 +231,12 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(html.encode())
 
     def send_file(self):
-        if not os.path.exists(PACKAGE_FILE):
+        package_file = get_package_file()
+        if not os.path.exists(package_file):
             self.send_error(404, "File not found")
             return
 
-        file_size = os.path.getsize(PACKAGE_FILE)
+        file_size = os.path.getsize(package_file)
 
         self.send_response(200)
         self.send_header("Content-Type", "application/gzip")
@@ -217,25 +244,32 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Length", file_size)
         self.end_headers()
 
-        with open(PACKAGE_FILE, "rb") as f:
-            while chunk := f.read(8192):
+        with open(package_file, "rb") as f:
+            while chunk := f.read(1024 * 1024):  # 1MB chunks for faster transfer
                 self.wfile.write(chunk)
 
     def log_message(self, format, *args):
         print(f"[{self.log_date_time_string()}] {args[0]}")
 
 
+class ThreadedHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    """멀티스레드 HTTP 서버"""
+    allow_reuse_address = True
+    daemon_threads = True
+
+
 def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)) or ".")
+    package_file = get_package_file()
 
-    with socketserver.TCPServer(("", PORT), CustomHandler) as httpd:
+    with ThreadedHTTPServer(("", PORT), CustomHandler) as httpd:
         print(f"=" * 50)
         print(f"  ATON Server - Airgap Package Download Server")
         print(f"=" * 50)
         print(f"  URL: http://0.0.0.0:{PORT}")
-        print(f"  파일: {PACKAGE_FILE}")
-        if os.path.exists(PACKAGE_FILE):
-            size_mb = os.path.getsize(PACKAGE_FILE) / (1024 * 1024)
+        print(f"  파일: {package_file}")
+        if os.path.exists(package_file):
+            size_mb = os.path.getsize(package_file) / (1024 * 1024)
             print(f"  크기: {size_mb:.2f} MB")
         else:
             print(f"  상태: 파일 없음 (export_for_airgap.sh 실행 필요)")

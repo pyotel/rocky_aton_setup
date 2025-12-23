@@ -3,7 +3,7 @@ services:
     image: python:3.11-slim
     container_name: airgap-package-server
     working_dir: /app
-    command: python3 serve_package.py
+    command: python3 -u serve_package.py
     ports:
       - "31901:31889"
     volumes:
@@ -11,4 +11,5 @@ services:
       - ../:/data:ro
     environment:
       - PACKAGE_DIR=/data
+      - PYTHONUNBUFFERED=1
     restart: unless-stopped
