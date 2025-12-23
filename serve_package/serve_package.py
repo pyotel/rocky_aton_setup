@@ -148,7 +148,7 @@ HTML_TEMPLATE = Template("""<!DOCTYPE html>
             <ol>
                 <li>파일 다운로드 후 폐쇄망 환경으로 전송</li>
                 <li>압축 해제: <code>tar xzf $filename</code></li>
-                <li>설치 실행: <code>cd airgap_package && sudo ./install_airgap.sh</code></li>
+                <li>설치 실행: <code>cd airgap_package && sudo ./script/install_airgap.sh</code></li>
             </ol>
         </div>
     </div>

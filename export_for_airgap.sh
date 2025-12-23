@@ -106,7 +106,7 @@ export_docker_images() {
     source .env
 
     log_info "Docker Compose 이미지 빌드 중..."
-    docker compose build --no-cache
+    docker compose build
 
     # InfluxDB 이미지 다운로드 및 저장
     log_info "InfluxDB 이미지 저장 중..."
